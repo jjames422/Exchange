@@ -1,16 +1,26 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
-    "./pages/**/*.{js,ts,jsx,tsx,mdx}",
-    "./components/**/*.{js,ts,jsx,tsx,mdx}",
-    "./app/**/*.{js,ts,jsx,tsx,mdx}",
+    './app/**/*.{js,jsx,ts,tsx}',
+    './pages/**/*.{js,jsx,ts,tsx}',
+    './components/**/*.{js,jsx,ts,tsx}',
   ],
+  darkMode: 'class', // Enable class-based dark mode
   theme: {
     extend: {
-      backgroundImage: {
-        "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
-        "gradient-conic":
-          "conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))",
+      colors: {
+        neonPink: '#FF44CC',
+        neonBlue: '#44CCFF',
+        neonGreen: '#CCFF44',
+        neonYellow: '#FFCC44',
+        neonPurple: '#CC44FF',
+        darkBackground: '#2E2E2E',
+        lightBackground: '#E0E0E0',
+        darkText: '#F3F3F3',
+        lightText: '#1C1C1C',
+      },
+      fontFamily: {
+        pixel: ['"Press Start 2P"', 'cursive'],
       },
     },
   },

@@ -2,6 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
+body {
+  font-family: 'Press Start 2P', cursive;
+}
+
 :root {
   --foreground-rgb: 0, 0, 0;
   --background-start-rgb: 214, 219, 220;
@@ -26,8 +30,14 @@ body {
     rgb(var(--background-start-rgb));
 }
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
+body.dark {
+  @apply bg-darkBackground text-darkText;
+}
+
+.header {
+  @apply bg-neonPurple text-neonYellow font-pixel;
+}
+
+body.dark .header {
+  @apply bg-neonPink text-neonBlue font-pixel;
 }
