@@ -41,3 +41,12 @@ body.dark {
 body.dark .header {
   @apply bg-neonPink text-neonBlue font-pixel;
 }
+
+@keyframes blink {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
