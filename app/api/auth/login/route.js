@@ -1,41 +1,38 @@
-import { NextResponse } from 'next/server';
-import pool from '@/lib/db';
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+const { pool } = require('@/lib/db');
+const jwt = require('jsonwebtoken');
+const { serialize } = require('cookie');
+const bcrypt = require('bcrypt');
+const redisClient = require('@/lib/redis');
 
 export async function POST(req) {
   const { email, password } = await req.json();
-
-  const client = await pool.connect();
   try {
-    const result = await client.query('SELECT * FROM users WHERE email = $1', [email]);
-    const user = result.rows[0];
+    const query = 'SELECT * FROM users WHERE email = $1';
+    const { rows } = await pool.query(query, [email]);
 
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    if (rows.length === 0) {
+      return new Response(JSON.stringify({ message: 'Invalid email or password' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
     }
 
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
+    const user = rows[0];
+    const isValidPassword = await bcrypt.compare(password, user.password);
+
+    if (!isValidPassword) {
+      return new Response(JSON.stringify({ message: 'Invalid email or password' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
     }
 
     const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET, { expiresIn: '1h' });
 
-    // Set token in HTTP-only cookie
-    const response = NextResponse.json({ success: true });
-    response.cookies.set('token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      maxAge: 3600,
-      path: '/',
-    });
+    // Store session in Redis
+    const session = { userId: user.id, email: user.email };
+    await redisClient.set(`session:${user.id}`, JSON.stringify(session), 'EX', 3600);
+    console.log('Session stored in Redis:', session);
 
-    return response;
-  } catch (error) {
-    console.error('User login failed:', error.message);
-    return NextResponse.json({ error: 'User login failed' }, { status: 500 });
-  } finally {
-    client.release();
+    const serialized = serialize('auth_token', token, { httpOnly: true, path: '/' });
+    return new Response(JSON.stringify({ token }), { status: 200, headers: { 'Content-Type': 'application/json', 'Set-Cookie': serialized } });
+
+  } catch (err) {
+    console.error('Error during login:', err);
+    return new Response(JSON.stringify({ message: 'Internal Server Error' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
   }
 }

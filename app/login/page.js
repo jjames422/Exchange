@@ -1,9 +1,11 @@
-'use client';
-import LoginForm from '@/components/LoginForm.js';
+import dynamic from 'next/dynamic';
+
+const LoginForm = dynamic(() => import('@/components/LoginForm'), { ssr: false });
 
 export default function LoginPage() {
   return (
-    <div className="flex items-center justify-center min-h-screen bg-background dark:bg-darkPurple text-black dark:text-white">
+    <div>
+      <h1>Login</h1>
       <LoginForm />
     </div>
   );
