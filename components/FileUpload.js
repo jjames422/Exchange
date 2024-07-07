@@ -1,56 +1,60 @@
-"use client";
+'use client';
 
 import React, { useState } from 'react';
-import axios from 'axios';
 
-const FileUpload = ({ onUploadSuccess }) => {
-  const [file, setFile] = useState(null);
-  const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(false);
+export default function FileUpload() {
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [uploadResult, setUploadResult] = useState(null);
 
-  const handleFileChange = (e) => {
-    setFile(e.target.files[0]);
-    setError(null);
+  const handleFileChange = (event) => {
+    setSelectedFile(event.target.files[0]);
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!file) {
-      setError('Please select a file to upload.');
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    if (!selectedFile) {
+      alert('Please select a file');
       return;
     }
 
-    const formData = new FormData();
-    formData.append('file', file);
-
     try {
-      setLoading(true);
-      const response = await axios.post('/api/upload', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
       });
 
-      setLoading(false);
-      onUploadSuccess(response.data.result);
-      setFile(null);
-    } catch (err) {
-      setLoading(false);
-      setError('Failed to upload file. Please try again.');
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      setUploadResult(data);
+      console.log('File uploaded successfully:', data);
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      setUploadResult({ error: error.message });
     }
   };
 
   return (
     <div>
+      <h2>Upload MT103 File</h2>
       <form onSubmit={handleSubmit}>
         <input type="file" onChange={handleFileChange} />
-        <button type="submit" disabled={loading}>
-          {loading ? 'Uploading...' : 'Upload'}
-        </button>
+        <button type="submit">Upload</button>
       </form>
-      {error && <p style={{ color: 'red' }}>{error}</p>}
+      {uploadResult && (
+        <div>
+          {uploadResult.error ? (
+            <p>Error: {uploadResult.error}</p>
+          ) : (
+            <pre>{JSON.stringify(uploadResult.data, null, 2)}</pre>
+          )}
+        </div>
+      )}
     </div>
   );
-};
-
-export default FileUpload;
+}
