@@ -1,38 +1,48 @@
-const { pool } = require('@/lib/db');
-const jwt = require('jsonwebtoken');
-const { serialize } = require('cookie');
-const bcrypt = require('bcrypt');
-const redisClient = require('@/lib/redis');
+
+import { NextResponse } from 'next/server';
+import { connectToDatabase } from '@/lib/db';
+import { verifyPassword } from '@/lib/auth';
 
 export async function POST(req) {
-  const { email, password } = await req.json();
   try {
-    const query = 'SELECT * FROM users WHERE email = $1';
-    const { rows } = await pool.query(query, [email]);
+    console.log("Request received");
+    const { email, password } = await req.json();
+    console.log("Parsed request body:", { email, password });
 
-    if (rows.length === 0) {
-      return new Response(JSON.stringify({ message: 'Invalid email or password' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
+    // Ensure email and password are provided
+    if (!email || !password) {
+      console.log("Missing email or password");
+      return NextResponse.json({ message: 'Email and password are required.' }, { status: 400 });
     }
 
-    const user = rows[0];
-    const isValidPassword = await bcrypt.compare(password, user.password);
+    const client = await connectToDatabase();
+    console.log("Connected to database");
 
-    if (!isValidPassword) {
-      return new Response(JSON.stringify({ message: 'Invalid email or password' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
+    const result = await client.query('SELECT * FROM users WHERE email = $1', [email]);
+    console.log("Database query result:", result);
+
+    if (result.rows.length === 0) {
+      client.release();
+      console.log("Invalid email");
+      return NextResponse.json({ message: 'Invalid email or password.' }, { status: 401 });
     }
 
-    const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    const user = result.rows[0];
+    const isValid = await verifyPassword(password, user.password);
+    console.log("Password verification result:", isValid);
 
-    // Store session in Redis
-    const session = { userId: user.id, email: user.email };
-    await redisClient.set(`session:${user.id}`, JSON.stringify(session), 'EX', 3600);
-    console.log('Session stored in Redis:', session);
+    if (!isValid) {
+      client.release();
+      console.log("Invalid password");
+      return NextResponse.json({ message: 'Invalid email or password.' }, { status: 401 });
+    }
 
-    const serialized = serialize('auth_token', token, { httpOnly: true, path: '/' });
-    return new Response(JSON.stringify({ token }), { status: 200, headers: { 'Content-Type': 'application/json', 'Set-Cookie': serialized } });
-
-  } catch (err) {
-    console.error('Error during login:', err);
-    return new Response(JSON.stringify({ message: 'Internal Server Error' }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+    // Successfully authenticated
+    client.release();
+    console.log("Login successful");
+    return NextResponse.json({ message: 'Login successful.' }, { status: 200 });
+  } catch (error) {
+    console.error('Error during login:', error);
+    return NextResponse.json({ message: 'Internal server error.' }, { status: 500 });
   }
 }
