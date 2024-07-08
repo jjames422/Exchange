@@ -1,47 +1,53 @@
-import nextConnect from 'next-connect';
+import { NextResponse } from 'next/server';
 import multer from 'multer';
 import path from 'path';
+import fs from 'fs';
 import { parseMT103File } from '@/lib/parseMT103File';
-import { scheduleFileArchival } from '@/lib/scheduler';
 
-const upload = multer({
-  storage: multer.diskStorage({
-    destination: './uploads',
-    filename: (req, file, cb) => cb(null, `${Date.now()}_${file.originalname}`),
-  }),
-});
+const upload = multer({ dest: path.join(process.cwd(), 'uploads') });
 
-const apiRoute = nextConnect({
-  onError(error, req, res) {
-    console.error('Error in request handling:', error);
-    res.status(500).json({ error: `Something went wrong: ${error.message}` });
+export const config = {
+  api: {
+    bodyParser: false,
   },
-  onNoMatch(req, res) {
-    res.status(405).json({ error: `Method ${req.method} Not Allowed` });
-  },
-});
+};
 
-apiRoute.use(upload.single('file'));
+function runMiddleware(req, res, fn) {
+  return new Promise((resolve, reject) => {
+    fn(req, res, (result) => {
+      if (result instanceof Error) {
+        return reject(result);
+      }
+      return resolve(result);
+    });
+  });
+}
 
-apiRoute.post(async (req, res) => {
+const uploadMiddleware = upload.single('file');
+
+export async function POST(req) {
   try {
+    await runMiddleware(req, {}, uploadMiddleware);
+
     if (!req.file) {
-      throw new Error('File upload failed');
+      console.error('No file uploaded');
+      return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
     }
+
     const filePath = req.file.path;
-    const parsedData = await parseMT103File(filePath);
-    
-    // Schedule file archival
-    scheduleFileArchival(filePath);
 
-    // Here you would add the parsed data to the user's fiat wallet
-    console.log('Parsed Data:', parsedData);
+    try {
+      const parsedData = await parseMT103File(filePath);
+      fs.unlinkSync(filePath);
 
-    res.status(200).json({ message: 'File uploaded and parsed successfully', data: parsedData });
+      return NextResponse.json({ data: parsedData }, { status: 200 });
+    } catch (error) {
+      console.error('Error during file processing:', error);
+      return NextResponse.json({ error: `File processing failed: ${error.message}` }, { status: 500 });
+    }
   } catch (error) {
-    console.error('Error processing file:', error);
-    res.status(500).json({ error: `Failed to process file: ${error.message}` });
+    console.error('Error in file upload middleware:', error);
+    return NextResponse.json({ error: `Upload middleware error: ${error.message}` }, { status: 500 });
   }
-});
+}
 
-export default apiRoute;
